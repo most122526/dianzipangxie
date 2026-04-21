@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>电子螃蟹 · 手机遥控</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background: #0a121c;
+            color: #e3f2fd;
+            touch-action: pan-x pan-y;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* 顶部状态栏 */
+        #top-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(8, 28, 40, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid #2c8da8;
+            border-radius: 60px;
+            padding: 10px 18px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        }
+        .ble-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .led {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #6b7f8b;
+            box-shadow: 0 0 8px currentColor;
+        }
+        .led.on {
+            background: #2ecc71;
+            box-shadow: 0 0 15px #2ecc71;
+        }
+        #devName {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-icon {
+            background: rgba(20, 80, 100, 0.8);
+            border: 1px solid #3fc3e0;
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+            box-shadow: 0 4px 10px #00000040;
+            border: 1px solid #2fa9cc;
+            transition: 0.2s;
+        }
+        .btn-icon:active {
+            background: #1a7f9e;
+            transform: scale(0.92);
+        }
+        .btn-text {
+            background: rgba(20, 80, 100, 0.8);
+            border: 1px solid #3fc3e0;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 48px;
+            font-weight: 600;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+            box-shadow: 0 4px 10px #00000040;
+            font-size: 14px;
+        }
+
+        /* 底部控制面板 — 手机优化 */
+        #control-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 12px;
+            right: 12px;
+            z-index: 30;
+            background: rgba(5, 20, 30, 0.8);
+            backdrop-filter: blur(16px);
+            border: 1px solid #1f8aa8;
+            border-radius: 48px;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 20px 40px #00000080, inset 0 0 0 1px #2f9ebd33;
+            max-height: 55vh;
+            overflow-y: auto;
+        }
+        .ctrl-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .ctrl-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            min-width: 100px;
+        }
+        .group-title {
+            font-weight: 700;
+            color: #8ed3e8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 13px;
+            border-bottom: 2px solid #1e8da8;
+            padding-bottom: 3px;
+        }
+        .button-cluster {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .ctrl-btn {
+            background: #153b48;
+            border: none;
+            border-bottom: 3px solid #1d7a93;
+            color: #ddf4ff;
+            padding: 12px 18px;
+            border-radius: 48px;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 75px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #0a1e28, 0 6px 12px black;
+            transition: all 0.05s;
+            text-shadow: 0 1px 2px black;
+            touch-action: manipulation;
+            border: 1px solid #3ab4d4;
+            border-bottom-width: 4px;
+        }
+        .ctrl-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #0a1e28, 0 6px 12px black;
+        }
+        .ctrl-btn.warning {
+            background: #8b5e1c;
+            border-color: #f1c40f;
+        }
+        .action-hint {
+            position: absolute;
+            bottom: calc(20px + 55vh + 10px);
+            left: 20px;
+            z-index: 25;
+            background: #0c2533e0;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 13px;
+            border-left: 6px solid #2ecc71;
+            max-width: 70%;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+        #toast {
+            position: absolute;
+            top: 90px;
+            left: 20px;
+            right: 20px;
+            z-index: 35;
+            background: #1f4b5ec0;
+            padding: 10px 20px;
+            border-radius: 48px;
+            backdrop-filter: blur(5px);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            font-weight: 500;
+        }
+        /* 作者标签融合 */
+        .crab-label {
+            color: #ffaa66 !important;
+            font-size: 18px !important;
+            font-weight: bold;
+            text-shadow: 2px 2px 6px black;
+            background: #0a1e2ac0 !important;
+            padding: 4px 18px !important;
+            border-radius: 40px !important;
+            border: 1px solid #e67e22 !important;
+            white-space: nowrap;
+        }
+        /* 滚动条隐藏 */
+        #control-panel::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 3D 容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- 顶部连接栏 -->
+    <div id="top-bar">
+        <div class="ble-status">
+            <span class="led" id="connLed"></span>
+            <span id="devName">🔵 未连接</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-icon" id="connectBtn" title="连接蓝牙"><i class="fas fa-bluetooth-b"></i></button>
+            <button class="btn-icon" id="disconnectBtn" title="断开" style="background:#3a2c2c;"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+
+    <!-- 状态提示 & Toast -->
+    <div id="toast">🐚 指令已发送</div>
+    <div class="action-hint" id="actionHint">🦀 螃蟹待命 · 站姿</div>
+
+    <!-- 手机控制面板 -->
+    <div id="control-panel">
+        <!-- 第一行：身体姿态 -->
+        <div class="ctrl-group" style="width:100%;">
+            <div class="group-title"><i class="fas fa-arrows-alt-v"></i> 身体姿态</div>
+            <div class="button-cluster">
+                <button class="ctrl-btn" data-cmd="1">🦞 趴下 (1)</button>
+                <button class="ctrl-btn" data-cmd="2">🦀 站起 (2)</button>
+            </div>
+        </div>
+        <!-- 第二行：左钳 -->
+        <div class="ctrl-row">
+            <div class="ctrl-group">
+                <div class="group-title"><i class="fas fa-hand-rock"></i> 左钳升降</div>
+                <div class="button-cluster">
+                    <button class="ctrl-btn" data-cmd="3">⬆️ 抬 (3)</button>
+                    <button class="ctrl-btn" data-cmd="4">⬇️ 放 (4)</button>
+                </div>
+            </div>
+            <div class="ctrl-group">
+                <div class="group-title">左钳抓取</div>
+                <div class="button-cluster">
+                    <button class="ctrl-btn warning" data-cmd="5">🤏 抓 (5)</button>
+                    <button class="ctrl-btn warning" data-cmd="6">🖐️ 松 (6)</button>
+                </div>
+            </div>
+        </div>
+        <!-- 第三行：右钳 -->
+        <div class="ctrl-row">
+            <div class="ctrl-group">
+                <div class="group-title"><i class="fas fa-hand-peace"></i> 右钳升降</div>
+                <div class="button-cluster">
+                    <button class="ctrl-btn" data-cmd="7">⬆️ 抬 (7)</button>
+                    <button class="ctrl-btn" data-cmd="8">⬇️ 放 (8)</button>
+                </div>
+            </div>
+            <div class="ctrl-group">
+                <div class="group-title">右钳抓取</div>
+                <div class="button-cluster">
+                    <button class="ctrl-btn warning" data-cmd="9">🤏 抓 (9)</button>
+                    <button class="ctrl-btn warning" data-cmd="10">🖐️ 松 (10)</button>
+                </div>
+            </div>
+        </div>
+        <div style="text-align:center; opacity:0.7; font-size:12px; margin-top:4px;">
+            <i class="fas fa-keyboard"></i> 键盘快捷键 1~0 (0=10)
+        </div>
+    </div>
+
+    <!-- 依赖库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // ---------- BLE ----------
+        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+        let device = null, server = null, characteristic = null, connected = false;
+        
+        const connLed = document.getElementById('connLed');
+        const devNameSpan = document.getElementById('devName');
+        const toast = document.getElementById('toast');
+        const actionHint = document.getElementById('actionHint');
+        
+        // ---------- Three.js 场景 ----------
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#0a121c');
+        
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsCount = 1500;
+        const starPositions = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i+=3) {
+            starPositions[i] = (Math.random() - 0.5) * 2000;
+            starPositions[i+1] = (Math.random() - 0.5) * 2000;
+            starPositions[i+2] = (Math.random() - 0.5) * 2000;
+        }
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.7}));
+        scene.add(stars);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 2.5, 8);
+        camera.lookAt(0, 1, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.left = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        controls.target.set(0, 1.2, 0);
+        controls.maxPolarAngle = Math.PI / 1.8;
+        
+        // 灯光
+        scene.add(new THREE.AmbientLight(0x404060));
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        dirLight.position.set(3, 8, 4);
+        dirLight.castShadow = true;
+        dirLight.receiveShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        const d = 10;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 25;
+        scene.add(dirLight);
+        scene.add(new THREE.PointLight(0x446688, 0.8, 20, 2, 3, 3));
+        scene.add(new THREE.PointLight(0x88aacc, 0.5, 20, -2, 2, -4));
+        
+        const gridHelper = new THREE.GridHelper(10, 20, 0x3a9bbf, 0x1c4858);
+        gridHelper.position.y = -0.01;
+        scene.add(gridHelper);
+        
+        const plane = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshStandardMaterial({ color: 0x112a33, roughness: 0.7, transparent: true, opacity: 0.3, side: THREE.DoubleSide}));
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = 0;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        // ---------- 螃蟹建模 ----------
+        const crabGroup = new THREE.Group();
+        crabGroup.position.y = 0.2;
+        
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd84c3c, roughness: 0.4 });
+        const legMat = new THREE.MeshStandardMaterial({ color: 0xb53b2e, roughness: 0.6 });
+        const clawMat = new THREE.MeshStandardMaterial({ color: 0xe05a3a, roughness: 0.3 });
+        
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.9, 32, 16), bodyMat);
+        body.scale.set(1.5, 0.7, 1.0);
+        body.castShadow = true; body.receiveShadow = true;
+        body.position.y = 0.6;
+        crabGroup.add(body);
+        
+        const shell = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 12), new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.5 }));
+        shell.scale.set(1.3, 0.5, 0.9);
+        shell.position.y = 0.75;
+        shell.castShadow = true;
+        crabGroup.add(shell);
+        
+        // 眼睛
+        const eyeStalkGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.3);
+        const eyeBallGeo = new THREE.SphereGeometry(0.16);
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111122 });
+        const pupilMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
+        
+        const leftStalk = new THREE.Mesh(eyeStalkGeo, legMat);
+        leftStalk.position.set(-0.55, 0.95, 0.45);
+        leftStalk.rotation.z = -0.2; leftStalk.rotation.x = 0.1;
+        leftStalk.castShadow = true;
+        crabGroup.add(leftStalk);
+        const leftEye = new THREE.Mesh(eyeBallGeo, eyeMat);
+        leftEye.position.set(-0.65, 1.08, 0.5);
+        leftEye.castShadow = true;
+        crabGroup.add(leftEye);
+        const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.08), pupilMat);
+        leftPupil.position.set(-0.7, 1.1, 0.6);
+        leftPupil.castShadow = true;
+        crabGroup.add(leftPupil);
+        
+        const rightStalk = new THREE.Mesh(eyeStalkGeo, legMat);
+        rightStalk.position.set(0.55, 0.95, 0.45);
+        rightStalk.rotation.z = 0.2; rightStalk.rotation.x = 0.1;
+        rightStalk.castShadow = true;
+        crabGroup.add(rightStalk);
+        const rightEye = new THREE.Mesh(eyeBallGeo, eyeMat);
+        rightEye.position.set(0.65, 1.08, 0.5);
+        rightEye.castShadow = true;
+        crabGroup.add(rightEye);
+        const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.08), pupilMat);
+        rightPupil.position.set(0.7, 1.1, 0.6);
+        rightPupil.castShadow = true;
+        crabGroup.add(rightPupil);
+        
+        function createLeg(x, z, rotY) {
+            const g = new THREE.Group();
+            const s1 = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.6), legMat);
+            s1.position.y = 0.3; s1.castShadow = true; s1.receiveShadow = true;
+            g.add(s1);
+            const s2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.6), legMat);
+            s2.position.y = 0.8; s2.rotation.x = 0.4; s2.castShadow = true;
+            g.add(s2);
+            g.position.set(x, 0.2, z);
+            g.rotation.y = rotY;
+            return g;
+        }
+        crabGroup.add(createLeg(-0.8, 0.4, 0.3));
+        crabGroup.add(createLeg(-1.0, 0.0, 0.5));
+        crabGroup.add(createLeg(-0.9, -0.5, 0.6));
+        crabGroup.add(createLeg(0.8, 0.4, -0.3));
+        crabGroup.add(createLeg(1.0, 0.0, -0.5));
+        crabGroup.add(createLeg(0.9, -0.5, -0.6));
+        
+        // 左钳
+        const leftClawGroup = new THREE.Group();
+        leftClawGroup.position.set(-1.6, 0.7, 0.2);
+        crabGroup.add(leftClawGroup);
+        const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 1.0), clawMat);
+        leftArm.position.y = 0.3; leftArm.rotation.z = 0.5; leftArm.rotation.x = 0.2;
+        leftArm.castShadow = true; leftClawGroup.add(leftArm);
+        const leftBase = new THREE.Mesh(new THREE.SphereGeometry(0.3), clawMat);
+        leftBase.position.set(0.2, 0.9, 0.1); leftBase.scale.set(1.0,0.6,0.7); leftBase.castShadow = true;
+        leftClawGroup.add(leftBase);
+        const leftUpper = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.7), clawMat);
+        leftUpper.position.set(0.35, 1.1, 0.2); leftUpper.rotation.z = -0.5; leftUpper.rotation.x = 0.1; leftUpper.castShadow = true;
+        leftClawGroup.add(leftUpper);
+        const leftLower = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65), clawMat);
+        leftLower.position.set(0.15, 0.7, 0.0); leftLower.rotation.z = 0.8; leftLower.rotation.x = -0.2; leftLower.castShadow = true;
+        leftClawGroup.add(leftLower);
+        const leftParts = { group: leftClawGroup, upper: leftUpper, lower: leftLower };
+        
+        // 右钳
+        const rightClawGroup = new THREE.Group();
+        rightClawGroup.position.set(1.6, 0.7, 0.2);
+        crabGroup.add(rightClawGroup);
+        const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 1.0), clawMat);
+        rightArm.position.y = 0.3; rightArm.rotation.z = -0.5; rightArm.rotation.x = 0.2;
+        rightArm.castShadow = true; rightClawGroup.add(rightArm);
+        const rightBase = new THREE.Mesh(new THREE.SphereGeometry(0.3), clawMat);
+        rightBase.position.set(-0.2, 0.9, 0.1); rightBase.scale.set(1.0,0.6,0.7); rightBase.castShadow = true;
+        rightClawGroup.add(rightBase);
+        const rightUpper = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.7), clawMat);
+        rightUpper.position.set(-0.35, 1.1, 0.2); rightUpper.rotation.z = 0.5; rightUpper.rotation.x = 0.1; rightUpper.castShadow = true;
+        rightClawGroup.add(rightUpper);
+        const rightLower = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65), clawMat);
+        rightLower.position.set(-0.15, 0.7, 0.0); rightLower.rotation.z = -0.8; rightLower.rotation.x = -0.2; rightLower.castShadow = true;
+        rightClawGroup.add(rightLower);
+        const rightParts = { group: rightClawGroup, upper: rightUpper, lower: rightLower };
+        
+        scene.add(crabGroup);
+        
+        // 标签: 蟹老板 + 作者张涛
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = '🦀 蟹老板 (作者张涛)';
+        labelDiv.style.color = '#ffaa66';
+        labelDiv.style.fontSize = '18px';
+        labelDiv.style.fontWeight = 'bold';
+        labelDiv.style.textShadow = '2px 2px 6px black';
+        labelDiv.style.background = '#0a1e2ac0';
+        labelDiv.style.padding = '6px 20px';
+        labelDiv.style.borderRadius = '40px';
+        labelDiv.style.border = '1px solid #e67e22';
+        labelDiv.style.pointerEvents = 'none';
+        labelDiv.style.whiteSpace = 'nowrap';
+        const labelObj = new CSS2DObject(labelDiv);
+        labelObj.position.set(0, 2.3, 0);
+        crabGroup.add(labelObj);
+        
+        // 姿态状态
+        let isCrouching = false, leftUp = false, leftGrab = false, rightUp = false, rightGrab = false;
+        function updatePose() {
+            crabGroup.position.y = isCrouching ? 0.0 : 0.2;
+            leftParts.group.rotation.x = leftUp ? -0.8 : 0.0;
+            leftParts.upper.rotation.z = leftGrab ? -0.9 : -0.5;
+            leftParts.lower.rotation.z = leftGrab ? 1.0 : 0.8;
+            rightParts.group.rotation.x = rightUp ? -0.8 : 0.0;
+            rightParts.upper.rotation.z = rightGrab ? 0.9 : 0.5;
+            rightParts.lower.rotation.z = rightGrab ? -1.0 : -0.8;
+            actionHint.innerHTML = `🦀 ${isCrouching?'趴下':'站立'} | 左${leftUp?'抬':'放'} ${leftGrab?'抓':'松'} | 右${rightUp?'抬':'放'} ${rightGrab?'抓':'松'}`;
+        }
+        updatePose();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            stars.rotation.y += 0.0002;
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // ---------- 蓝牙指令 ----------
+        function showToast(msg) {
+            toast.style.opacity = 1;
+            toast.textContent = msg;
+            setTimeout(() => toast.style.opacity = 0, 1200);
+        }
+        async function sendCmd(cmd) {
+            if (!connected || !characteristic) { showToast('❌ 未连接'); return; }
+            try {
+                await characteristic.writeValue(new TextEncoder().encode(cmd));
+                showToast(`📤 发送: ${cmd}`);
+                if (cmd === '1') isCrouching = true;
+                else if (cmd === '2') isCrouching = false;
+                else if (cmd === '3') leftUp = true;
+                else if (cmd === '4') leftUp = false;
+                else if (cmd === '5') leftGrab = true;
+                else if (cmd === '6') leftGrab = false;
+                else if (cmd === '7') rightUp = true;
+                else if (cmd === '8') rightUp = false;
+                else if (cmd === '9') rightGrab = true;
+                else if (cmd === '10') rightGrab = false;
+                updatePose();
+            } catch(e) { showToast('发送失败'); }
+        }
+        
+        document.querySelectorAll('[data-cmd]').forEach(btn => {
+            btn.addEventListener('click', () => sendCmd(btn.dataset.cmd));
+        });
+        
+        async function connectBLE() {
+            try {
+                device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+                devNameSpan.textContent = device.name || '螃蟹';
+                device.addEventListener('gattserverdisconnected', () => {
+                    connected = false; connLed.classList.remove('on'); devNameSpan.textContent = '🔴 断开';
+                    showToast('🔌 断开');
+                });
+                server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                characteristic = await service.getCharacteristic(CHAR_UUID);
+                connected = true;
+                connLed.classList.add('on');
+                showToast('✅ 已连接');
+            } catch(e) { alert('连接失败: '+e.message); }
+        }
+        
+        document.getElementById('connectBtn').addEventListener('click', () => {
+            if (!navigator.bluetooth) { alert('需要Web Bluetooth'); return; }
+            connectBLE();
+        });
+        document.getElementById('disconnectBtn').addEventListener('click', async () => {
+            if (device) { await device.gatt.disconnect(); }
+            connected = false; connLed.classList.remove('on'); devNameSpan.textContent = '🔵 未连接';
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            const map = {'1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9','0':'10'};
+            if (map[e.key]) sendCmd(map[e.key]);
+        });
+        
+        window.addEventListener('beforeunload', () => { if (device?.gatt) device.gatt.disconnect(); });
+        showToast('🦀 点击蓝牙连接');
+    </script>
+</body>
+</html>
